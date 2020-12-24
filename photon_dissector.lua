@@ -227,7 +227,7 @@ function add_reliable(buffer, pinfo, tree)
     local offset = 2
     local command_reliable_type_concrete = buffer(1, 1):uint()
     if command_reliable_type_concrete > 0x80 then
-        pinfo.cols.protocol = "ENCRYPTED PHOTON"
+        pinfo.cols.info = tostring(pinfo.cols.info) .. " ENCRYPTED"
         tree:add(command_reliable_type, buffer(1, 1))
         tree:add(encrypted, "Encrypted: Yes, Type: " .. tostring(reliable_types_arr[buffer(1, 1):uint()-0x80]) .. " ("..tostring(buffer(1, 1):uint()-0x80)..")")
         tree:add(valuebytes, buffer(2))
