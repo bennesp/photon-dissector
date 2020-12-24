@@ -82,6 +82,8 @@ param_string = ProtoField.string("photon.command.reliable.param_string", "String
 param_string_length = ProtoField.uint16("photon.command.reliable.param_string_length", "String Length", base.DEC)
 value8bit = ProtoField.uint8("photon.command.reliable.value8bit", "Value", base.DEC)
 value16bit = ProtoField.uint16("photon.command.reliable.value16bit", "Value", base.DEC)
+valuebytes = ProtoField.bytes("photon.command.reliable.valuebytes", "Value", base.NONE)
+encrypted = ProtoField.string("photon.command.reliable.encrypted", "Encrypted", base.STRING)
 
 photon_protocol.fields = {
     peer_id,
@@ -117,7 +119,8 @@ photon_protocol.fields = {
     param_string,
     param_string_length,
     value8bit,
-    value16bit
+    value16bit,
+    valuebytes
 }
 
 function add_value_from_type(tree, buffer, param_type_num)
@@ -220,14 +223,20 @@ end
 
 function add_reliable(buffer, pinfo, tree)
     tree:add(command_reliable_signature, buffer(0, 1))
-    tree:add(command_reliable_type, buffer(1, 1))
 
     local offset = 2
     local command_reliable_type_concrete = buffer(1, 1):uint()
     if command_reliable_type_concrete > 0x80 then
         pinfo.cols.protocol = "ENCRYPTED PHOTON"
-        -- TODO
-    elseif command_reliable_type_concrete == 0x02 or command_reliable_type_concrete == 0x06 then
+        tree:add(command_reliable_type, buffer(1, 1))
+        tree:add(encrypted, "Encrypted: Yes, Type: " .. tostring(reliable_types_arr[buffer(1, 1):uint()-0x80]) .. " ("..tostring(buffer(1, 1):uint()-0x80)..")")
+        tree:add(valuebytes, buffer(2))
+        return
+    else
+        tree:add(command_reliable_type, buffer(1, 1))
+    end
+    
+    if command_reliable_type_concrete == 0x02 or command_reliable_type_concrete == 0x06 then
         tree:add(operation_code, buffer(2, 1))
         offset = offset + 1
     elseif command_reliable_type_concrete == 0x04 then
@@ -254,6 +263,11 @@ end
 
 function add_command(buffer, pinfo, tree)
     tree:add(command_type, buffer(0, 1))
+
+    if (command_types_arr[buffer(0, 1):uint()] ~= nil) then
+        pinfo.cols.info = tostring(pinfo.cols.info) .. " " .. tostring(command_types_arr[buffer(0, 1):uint()])
+    end
+
     tree:add(command_channel_id, buffer(1, 1))
     tree:add(command_flags, buffer(2, 1))
     tree:add(command_reserved_byte, buffer(3, 1))
@@ -267,7 +281,7 @@ function add_command(buffer, pinfo, tree)
         local subBuff = buffer(12, command_length_concrete)
         local subtree = tree:add(photon_protocol, subBuff, "Reliable Command")
         add_reliable(subBuff, pinfo, subtree)
-    else
+    elseif command_length_concrete - 12 > 0 then
         tree:add(command_data, buffer(12, command_length_concrete))
     end
 
